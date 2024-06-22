@@ -5,18 +5,18 @@
  */
 
 import {
+  DocumentNode,
   ExecutionArgs,
   ExecutionResult,
-  GraphQLSchema,
-  validate as graphqlValidate,
-  ValidationRule,
-  specifiedRules,
-  execute as graphqlExecute,
-  parse as graphqlParse,
-  DocumentNode,
-  getOperationAST as graphqlGetOperationAST,
-  OperationTypeNode,
   GraphQLError,
+  GraphQLSchema,
+  OperationTypeNode,
+  ValidationRule,
+  execute as graphqlExecute,
+  getOperationAST as graphqlGetOperationAST,
+  parse as graphqlParse,
+  validate as graphqlValidate,
+  specifiedRules,
 } from 'graphql';
 import { RequestParams } from './common';
 import { isAsyncIterable, isExecutionResult, isObject } from './utils';
@@ -263,6 +263,30 @@ export async function parseRequestParams<
       partParams.extensions = data.extensions;
       break;
     }
+    case method === 'POST' &&
+            (mediaType === "multipart/form-data" || (mediaType === 'application/json' &&
+            charset === 'charset=utf-8')):
+            {
+                if (!req.body) {
+                    throw new Error('Missing body');
+                }
+                let data;
+                try {
+                    const body = typeof req.body === 'function' ? await req.body() : req.body;
+                    data = typeof body === 'string' ? JSON.parse(body) : body;
+                }
+                catch (err) {
+                    throw new Error('Unparsable JSON body');
+                }
+                if (!isObject(data)) {
+                    throw new Error('JSON body must be an object');
+                }
+                partParams.operationName = data.operationName;
+                partParams.query = data.query;
+                partParams.variables = data.variables;
+                partParams.extensions = data.extensions;
+                break;
+            }
     default: // graphql-http doesnt support any other content type
       return [
         null,
